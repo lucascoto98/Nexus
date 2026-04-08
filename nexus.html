@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <title>Nexus</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --nexus-blue: #00d2ff;
+            --nexus-purple: #9d50bb;
+            --bg-main: #0a0a0c;
+            --panel-bg: rgba(20, 20, 25, 0.95);
+            --border: rgba(255, 255, 255, 0.1);
+            --accent: #6e40c9;
+        }
+
+        body {
+            margin: 0; font-family: 'Inter', sans-serif;
+            background-color: var(--bg-main); color: white;
+            display: grid; grid-template-rows: 55px 140px 1fr;
+            height: 100vh; width: 100vw; overflow: hidden;
+        }
+
+        header { 
+            background: var(--panel-bg); border-bottom: 1px solid var(--border); 
+            display: flex; align-items: center; justify-content: space-between; padding: 0 25px;
+        }
+        .logo { font-weight: 900; letter-spacing: 2px; background: linear-gradient(to right, var(--nexus-blue), var(--nexus-purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+        .ribbon { 
+            background: #111116; border-bottom: 1px solid var(--border);
+            display: flex; padding: 10px; gap: 5px; overflow-x: auto;
+        }
+        .group { border-right: 1px solid var(--border); padding: 0 15px; display: flex; flex-direction: column; align-items: center; }
+        .group-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+        .group-label { font-size: 9px; color: #444; text-transform: uppercase; font-weight: 800; margin-top: 8px; }
+
+        .btn-tool {
+            background: rgba(255,255,255,0.03); border: 1px solid var(--border); color: #aaa;
+            padding: 8px; border-radius: 6px; cursor: pointer; transition: 0.2s;
+            display: flex; flex-direction: column; align-items: center; min-width: 60px; font-size: 10px; gap: 4px;
+        }
+        .btn-tool:hover { background: var(--accent); color: white; border-color: white; }
+        .btn-tool i { font-size: 16px; }
+
+        main { display: grid; grid-template-columns: 220px 1fr 260px; overflow: hidden; }
+        #sidebar { background: #08080a; border-right: 1px solid var(--border); padding: 15px; overflow-y: auto; }
+        .thumb-box { margin-bottom: 15px; cursor: pointer; text-align: center;}
+        .thumb { width: 100%; aspect-ratio: 16/9; background: white; border-radius: 4px; border: 2px solid #222; }
+        .active .thumb { border-color: var(--nexus-blue); box-shadow: 0 0 10px rgba(0, 210, 255, 0.3); }
+
+        #viewport { display: flex; justify-content: center; align-items: center; background: #000; padding: 20px; overflow: auto; }
+        #slide { width: 960px; height: 540px; background: white; position: relative; box-shadow: 0 0 50px rgba(0,0,0,0.5); flex-shrink: 0; }
+
+        .wp-object { position: absolute; color: black; }
+        .wp-object.selected { outline: 2px solid var(--nexus-blue); z-index: 1000 !important; }
+
+        /* MODO APRESENTAÇÃO */
+        body.presenting { grid-template-rows: 1fr !important; }
+        .presenting header, .presenting .ribbon, .presenting #sidebar, .presenting #props-panel { display: none !important; }
+        .presenting #viewport { position: fixed; inset: 0; background: black; z-index: 99999; padding: 0; }
+        .presenting #slide { transform: scale(1.1); box-shadow: none; cursor: none; }
+
+        #props-panel { background: var(--panel-bg); border-left: 1px solid var(--border); padding: 20px; }
+        .prop-card { background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--border); }
+        label { font-size: 11px; color: #666; display: block; margin-bottom: 8px; font-weight: bold; }
+        input[type="color"] { width: 100%; height: 35px; border: none; cursor: pointer; background: transparent; }
+    </style>
+</head>
+<body id="mainBody">
+
+    <header>
+        <div class="logo">- NEXUS -</div>
+        <button onclick="startPresent()" style="background:var(--nexus-blue); color:#000; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; font-weight:800;"><i class="fas fa-play"></i> APRESENTAR</button>
+    </header>
+
+    <div class="ribbon">
+        <div class="group">
+            <div class="group-btns">
+                <button class="btn-tool" onclick="addSlide()"><i class="fas fa-plus"></i>Novo</button>
+                <button class="btn-tool" onclick="duplicateSlide()"><i class="fas fa-copy"></i>Clonar</button>
+                <button class="btn-tool" onclick="saveProject()"><i class="fas fa-save"></i>Salvar</button>
+            </div>
+            <div class="group-label">Slides</div>
+        </div>
+        <div class="group">
+            <div class="group-btns">
+                <button class="btn-tool" onclick="addText()"><i class="fas fa-font"></i>Texto</button>
+                <button class="btn-tool" onclick="addShape('rect')"><i class="fas fa-square"></i>Forma</button>
+                <button class="btn-tool" onclick="addImage()"><i class="fas fa-image"></i>Imagem</button>
+            </div>
+            <div class="group-label">Inserir</div>
+        </div>
+        <div class="group">
+            <div class="group-btns">
+                <button class="btn-tool" onclick="formatDoc('bold')"><i class="fas fa-bold"></i>B</button>
+                <button class="btn-tool" onclick="formatDoc('italic')"><i class="fas fa-italic"></i>I</button>
+                <button class="btn-tool" onclick="alignTxt('center')"><i class="fas fa-align-center"></i>Meio</button>
+            </div>
+            <div class="group-label">Estilo</div>
+        </div>
+        <div class="group" style="border:none">
+            <div class="group-btns">
+                <button class="btn-tool" onclick="changeZIndex(1)"><i class="fas fa-arrow-up"></i>Subir</button>
+                <button class="btn-tool" onclick="deleteObject()" style="color:#ff4444"><i class="fas fa-trash"></i>Lixo</button>
+                <button class="btn-tool" onclick="exportPDF()"><i class="fas fa-file-pdf"></i>PDF</button>
+            </div>
+            <div class="group-label">Gestão</div>
+        </div>
+    </div>
+
+    <main>
+        <aside id="sidebar"></aside>
+        <section id="viewport">
+            <div id="slide" onclick="nextSlideIfPresenting()"></div>
+        </section>
+        <aside id="props-panel">
+            <div class="prop-card">
+                <label>FUNDO DO SLIDE</label>
+                <input type="color" value="#ffffff" oninput="changeSlideBgColor(this.value)">
+            </div>
+            <div id="obj-props" style="display:none" class="prop-card">
+                <label>COR DO ELEMENTO</label>
+                <input type="color" id="objColor" onchange="updateProp('fill', this.value)">
+            </div>
+        </aside>
+    </main>
+
+    <script>
+        let slides = [{ objects: [], bg: "#ffffff" }];
+        let currentIdx = 0;
+        let selectedId = null;
+        let isPresenting = false;
+
+        const slideEl = document.getElementById('slide');
+        const sidebar = document.getElementById('sidebar');
+
+        function renderSidebar() {
+            sidebar.innerHTML = '';
+            slides.forEach((s, i) => {
+                const box = document.createElement('div');
+                box.className = `thumb-box ${i === currentIdx ? 'active' : ''}`;
+                box.innerHTML = `<div class="thumb" style="background:${s.bg}"></div><div style="font-size:10px; margin-top:5px; color:#555">Slide ${i+1}</div>`;
+                box.onclick = () => { if(!isPresenting) { sync(); currentIdx = i; load(); } };
+                sidebar.appendChild(box);
+            });
+        }
+
+        function load() {
+            slideEl.innerHTML = '';
+            slideEl.style.background = slides[currentIdx].bg;
+            slides[currentIdx].objects.forEach(createObj);
+            renderSidebar();
+        }
+
+        function sync() {
+            if(!slides[currentIdx]) return;
+            slides[currentIdx].objects.forEach(obj => {
+                if(obj.type === 'text') {
+                    const el = document.querySelector(`[data-id="${obj.id}"] div`);
+                    if(el) obj.content = el.innerHTML;
+                }
+            });
+        }
+
+        function createObj(obj) {
+            const el = document.createElement('div');
+            el.className = 'wp-object';
+            el.setAttribute('data-id', obj.id);
+            el.style.cssText = `left:${obj.x}px; top:${obj.y}px; width:${obj.w}px; height:${obj.h}px; z-index:${obj.z || 10};`;
+            
+            if(obj.type === 'text') {
+                el.innerHTML = `<div contenteditable="true" spellcheck="false" style="width:100%; height:100%; outline:none; color:black; font-size:24px; text-align:${obj.align || 'left'}">${obj.content}</div>`;
+                el.firstChild.onmousedown = e => e.stopPropagation();
+            } else if(obj.type === 'img') {
+                el.innerHTML = `<img src="${obj.src}" style="width:100%; height:100%; pointer-events:none;">`;
+            } else {
+                el.style.background = obj.fill;
+                if(obj.shape === 'circle') el.style.borderRadius = '50%';
+            }
+
+            el.onmousedown = (e) => { if(!isPresenting) { e.stopPropagation(); select(obj.id); } };
+            slideEl.appendChild(el);
+
+            if(!isPresenting) {
+                interact(el).draggable({ onmove: (e) => { obj.x += e.dx; obj.y += e.dy; el.style.left = obj.x+'px'; el.style.top = obj.y+'px'; }})
+                .resizable({ edges: {right:true, bottom:true, left:true, top:true}, onmove: (e) => { 
+                    obj.w = e.rect.width; obj.h = e.rect.height; 
+                    obj.x += e.deltaRect.left; obj.y += e.deltaRect.top;
+                    el.style.width = obj.w+'px'; el.style.height = obj.h+'px';
+                    el.style.left = obj.x+'px'; el.style.top = obj.y+'px';
+                }});
+            }
+        }
+
+        function addSlide() { sync(); slides.push({ objects: [], bg: "#ffffff" }); currentIdx = slides.length - 1; load(); }
+        function duplicateSlide() { sync(); slides.splice(currentIdx+1, 0, JSON.parse(JSON.stringify(slides[currentIdx]))); currentIdx++; load(); }
+        function addText() { const obj = { id: Date.now(), type: 'text', content: 'Texto Novo', x: 50, y: 50, w: 200, h: 60, z: 10 }; slides[currentIdx].objects.push(obj); createObj(obj); select(obj.id); }
+        function addShape(t) { const obj = { id: Date.now(), type: 'shape', shape: t, fill: '#00d2ff', x: 100, y: 100, w: 100, h: 100, z: 10 }; slides[currentIdx].objects.push(obj); createObj(obj); select(obj.id); }
+        function addImage() { const url = prompt("URL da Imagem:"); if(url) { const obj = { id: Date.now(), type: 'img', src: url, x: 100, y: 100, w: 200, h: 150, z: 10 }; slides[currentIdx].objects.push(obj); createObj(obj); select(obj.id); } }
+
+        function select(id) {
+            selectedId = id;
+            document.querySelectorAll('.wp-object').forEach(o => o.classList.toggle('selected', o.getAttribute('data-id') == id));
+            document.getElementById('obj-props').style.display = 'block';
+        }
+
+        function deleteObject() { if(selectedId) { slides[currentIdx].objects = slides[currentIdx].objects.filter(o => o.id !== selectedId); selectedId = null; load(); } }
+        function changeSlideBgColor(c) { slides[currentIdx].bg = c; slideEl.style.background = c; renderSidebar(); }
+        function updateProp(p, v) { const obj = slides[currentIdx].objects.find(o => o.id === selectedId); if(obj) { obj[p] = v; load(); select(obj.id); } }
+        function formatDoc(c) { document.execCommand(c, false, null); }
+        function alignTxt(a) { const obj = slides[currentIdx].objects.find(o => o.id === selectedId); if(obj) { obj.align = a; load(); select(obj.id); } }
+        function changeZIndex(v) { const obj = slides[currentIdx].objects.find(o => o.id === selectedId); if(obj) { obj.z = (obj.z || 10) + v; load(); select(obj.id); } }
+
+        // SISTEMA DE APRESENTAÇÃO ROBUSTO
+        function startPresent() {
+            sync(); isPresenting = true;
+            document.body.classList.add('presenting');
+            if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+            load();
+        }
+
+        function stopPresent() {
+            isPresenting = false;
+            document.body.classList.remove('presenting');
+            if (document.fullscreenElement) document.exitFullscreen();
+            // Pequeno delay para o navegador processar a saída do grid
+            setTimeout(() => { load(); window.dispatchEvent(new Event('resize')); }, 50);
+        }
+
+        // Listener para saída via ESC (tecla do sistema)
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement && isPresenting) stopPresent();
+        });
+
+        function nextSlideIfPresenting() {
+            if(isPresenting) {
+                if(currentIdx < slides.length - 1) { currentIdx++; load(); }
+                else { stopPresent(); }
+            }
+        }
+
+        window.addEventListener('keydown', e => {
+            if(isPresenting) {
+                if(e.key === 'ArrowRight' || e.key === ' ') nextSlideIfPresenting();
+                if(e.key === 'ArrowLeft' && currentIdx > 0) { currentIdx--; load(); }
+            }
+            if(e.key === 'Delete' && selectedId && !document.activeElement.isContentEditable) deleteObject();
+        });
+
+        async function exportPDF() {
+            sync();
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('l', 'px', [960, 540]);
+            for(let i=0; i<slides.length; i++) {
+                currentIdx = i; load();
+                const canvas = await html2canvas(slideEl);
+                if(i > 0) doc.addPage();
+                doc.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 960, 540);
+            }
+            doc.save("Nexus_Export.pdf");
+        }
+
+        function saveProject() {
+            sync();
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([JSON.stringify(slides)], {type: 'application/json'}));
+            a.download = 'nexus_save.json'; a.click();
+        }
+
+        load();
+    </script>
+</body>
+</html>
